@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Odd Sock</title>
+<style>
+  /* Layout: one narrow centered column on a laundry-room wall. The start, play, and end screens swap in place inside that column. */
+  :root {
+    color-scheme: light;
+    --ink: #2B2A33;
+    --paper: #FFF9EC;
+    --muted: #5F5B6B;
+    --wall: #BFE0EA;
+    --wall-stripe: #B2D8E4;
+    --accent: #E4572E;
+    --accent-deep: #B63D1C;
+    --good: #BFE8B4;
+    --font-display: ui-rounded, "Arial Rounded MT Bold", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --font-body: ui-rounded, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  html { background: var(--wall); }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: repeating-linear-gradient(90deg, var(--wall) 0, var(--wall) 28px, var(--wall-stripe) 28px, var(--wall-stripe) 56px);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.4;
+    min-height: 100vh;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .app { max-width: 480px; margin: 0 auto; padding-block: 14px 28px; }
+
+  .bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .bar span { background: var(--ink); color: var(--paper); padding: 6px 12px; border-radius: 999px; }
+
+  .panel {
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    box-shadow: 6px 6px 0 var(--ink);
+    padding: 18px 18px 20px;
+  }
+
+  h1 { font-family: var(--font-display); font-size: 40px; line-height: 1.05; margin: 0 0 8px; letter-spacing: -0.5px; }
+  h2 { font-family: var(--font-display); font-size: 20px; line-height: 1.2; margin: 0 0 4px; }
+  p { margin: 0 0 12px; }
+  .small { font-size: 14px; color: var(--muted); }
+
+  .hero { display: flex; justify-content: center; gap: 6px; margin: 4px 0 12px; }
+  .hero svg { width: 72px; height: 96px; }
+  .hero svg:nth-child(1) { transform: rotate(-10deg); }
+  .hero svg:nth-child(3) { transform: rotate(12deg) translateY(6px); }
+
+  button {
+    font: inherit;
+    color: var(--ink);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .go {
+    display: block;
+    width: 100%;
+    min-height: 56px;
+    background: var(--accent);
+    color: #FFFFFF;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .go:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+
+  /* The pile of socks. Every sock is its own button, at least 64 pixels wide and 84 tall. */
+  .pile { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 4px; }
+  .pile.few { grid-template-columns: repeat(3, 1fr); }
+
+  .sock {
+    min-height: 84px;
+    padding: 4px;
+    background: transparent;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+  }
+
+  .sock svg { width: 56px; height: 75px; display: block; transition: opacity 0.25s; }
+  .pile.few .sock svg { width: 72px; height: 96px; }
+  .sock:disabled { cursor: default; }
+  .sock.pair { border-color: var(--muted); border-style: dashed; }
+  .sock.pair svg { opacity: 0.45; }
+  .sock.rest svg { opacity: 0.3; }
+  .sock.found { background: var(--good); border-color: var(--ink); animation: pop 0.5s ease-out; }
+
+  .note { min-height: 50px; margin: 8px 0 0; font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+  .next { margin-top: 10px; }
+
+  .score-big { font-family: var(--font-display); font-size: 56px; font-weight: 700; line-height: 1; margin: 6px 0 2px; }
+  .rank { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--accent-deep); margin-bottom: 6px; }
+
+  @keyframes pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.18) rotate(-6deg); }
+    70% { transform: scale(0.96) rotate(4deg); }
+    100% { transform: scale(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sock.found { animation: none; }
+    .sock svg { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<main class="app">
+  <header class="bar" id="bar" hidden>
+    <span id="round-count"></span>
+    <span id="score"></span>
+  </header>
+
+  <section class="panel" id="screen-start">
+    <div class="hero" id="hero" aria-hidden="true"></div>
+    <h1>Odd Sock</h1>
+    <p>It is laundry day. Every sock in the pile has a partner except one. Tap the sock that is all alone.</p>
+    <p class="small">There are five piles, and each one is bigger than the last. A pile counts only if your first tap is right.</p>
+    <button class="go" id="start" type="button">Start</button>
+  </section>
+
+  <section class="panel" id="screen-play" hidden>
+    <h2>Which sock has no partner?</h2>
+    <div class="pile" id="pile"></div>
+    <p class="note" id="note" aria-live="polite"></p>
+    <button class="go next" id="next" type="button" hidden>Next Pile</button>
+  </section>
+
+  <section class="panel" id="screen-end" hidden>
+    <div class="hero" id="end-hero" aria-hidden="true"></div>
+    <p class="score-big" id="final-score"></p>
+    <p id="final-line">piles solved on the first tap.</p>
+    <p class="rank" id="rank"></p>
+    <p id="rank-line"></p>
+    <button class="go" id="again" type="button">Play Again</button>
+  </section>
+</main>
+
+<script id="game-logic">
+// The rules of the game and the sock drawings. test-odd-sock.js and
+// fnMakeCover.js read this block on its own, so it holds only data and
+// functions that return values, and nothing that touches the page.
+
+const cInk_str = '#2B2A33';
+const cPatternInk_str = '#FFFDF6';
+const cColors_arr = ['#D9534F', '#3D6FB6', '#4E9F6B', '#F2B632', '#7A6FB0', '#E88FB0'];
+const cPatterns_arr = ['plain', 'stripes', 'dots', 'zigzag', 'diamonds'];
+const cCuffs_arr = ['#FFFDF6', '#2B2A33', '#F28B30'];
+const cSockPath_str = 'M16 6 H40 V42 C40 48 44 50 48 52 C56 56 58 62 56 68 C54 74 48 76 42 76 H30 C20 76 16 70 16 60 Z';
+const cMaxTilt_int = 10;
+
+// Each pile has this many pairs plus one odd sock. In a pile marked as a
+// twin pile, the odd sock is a near-copy of one of the pairs, with the same
+// color and cuff but a different pattern.
+const cRounds_arr = [
+  { pairs_int: 2, isTwin_bol: false },
+  { pairs_int: 4, isTwin_bol: false },
+  { pairs_int: 5, isTwin_bol: true },
+  { pairs_int: 7, isTwin_bol: true },
+  { pairs_int: 9, isTwin_bol: true }
+];
+
+// >>>>> fnShuffle_arr <<<<<
+// Returns a shuffled copy of a list and leaves the original alone. The
+// caller passes the random-number function, so a test can pass a seeded one.
+function fnShuffle_arr(pItems_arr, pRandom_fnc) {
+  var vCopy_arr = pItems_arr.slice();
+  var vIndex_int;
+  var vSwap_int;
+  var vHold_obj;
+  for (vIndex_int = vCopy_arr.length - 1; vIndex_int > 0; vIndex_int--) {
+    vSwap_int = Math.floor(pRandom_fnc() * (vIndex_int + 1));
+    vHold_obj = vCopy_arr[vIndex_int];
+    vCopy_arr[vIndex_int] = vCopy_arr[vSwap_int];
+    vCopy_arr[vSwap_int] = vHold_obj;
+  }
+  return vCopy_arr;
+}
+
+function fnDesignKey_str(pDesign_obj) {
+  return [pDesign_obj.color_str, pDesign_obj.pattern_str, pDesign_obj.cuff_str].join('|');
+}
+
+// >>>>> fnAllDesigns_arr <<<<<
+// Every sock design the game can draw: each color with each pattern and
+// each cuff.
+function fnAllDesigns_arr() {
+  var vDesigns_arr = [];
+  cColors_arr.forEach(function (pColor_str) {
+    cPatterns_arr.forEach(function (pPattern_str) {
+      cCuffs_arr.forEach(function (pCuff_str) {
+        vDesigns_arr.push({ color_str: pColor_str, pattern_str: pPattern_str, cuff_str: pCuff_str });
+      });
+    });
+  });
+  return vDesigns_arr;
+}
+
+// >>>>> fnBuildRound_arr <<<<<
+// Builds one pile from its answer: it picks the paired designs, then an odd
+// design that matches none of them, and gives every pair two socks and the
+// odd design one. That way a pile always has exactly one right answer.
+function fnBuildRound_arr(pRoundIndex_int, pRandom_fnc) {
+  const cRound_obj = cRounds_arr[pRoundIndex_int];
+  const cShuffled_arr = fnShuffle_arr(fnAllDesigns_arr(), pRandom_fnc);
+  const cPaired_arr = cShuffled_arr.slice(0, cRound_obj.pairs_int);
+  var vTaken_obj = {};
+  var vOdd_obj;
+  var vSocks_arr = [];
+
+  cPaired_arr.forEach(function (pDesign_obj) {
+    vTaken_obj[fnDesignKey_str(pDesign_obj)] = true;
+  });
+  if (cRound_obj.isTwin_bol) {
+    fnShuffle_arr(cPatterns_arr, pRandom_fnc).forEach(function (pPattern_str) {
+      var vTry_obj = { color_str: cPaired_arr[0].color_str, pattern_str: pPattern_str, cuff_str: cPaired_arr[0].cuff_str };
+      if (!vOdd_obj && !vTaken_obj[fnDesignKey_str(vTry_obj)]) {
+        vOdd_obj = vTry_obj;
+      }
+    });
+  }
+  if (!vOdd_obj) {
+    vOdd_obj = cShuffled_arr[cRound_obj.pairs_int];
+  }
+
+  cPaired_arr.forEach(function (pDesign_obj) {
+    vSocks_arr.push(fnMakeSock_obj(pDesign_obj, false, pRandom_fnc));
+    vSocks_arr.push(fnMakeSock_obj(pDesign_obj, false, pRandom_fnc));
+  });
+  vSocks_arr.push(fnMakeSock_obj(vOdd_obj, true, pRandom_fnc));
+  return fnShuffle_arr(vSocks_arr, pRandom_fnc);
+}
+
+// >>>>> fnMakeSock_obj <<<<<
+// One sock in the pile: its design, whether it is the odd one, and how it
+// happens to be lying (flipped or tilted), which is only for looks.
+function fnMakeSock_obj(pDesign_obj, pIsOdd_bol, pRandom_fnc) {
+  return {
+    key_str: fnDesignKey_str(pDesign_obj),
+    color_str: pDesign_obj.color_str,
+    pattern_str: pDesign_obj.pattern_str,
+    cuff_str: pDesign_obj.cuff_str,
+    isOdd_bol: pIsOdd_bol,
+    isFlipped_bol: pRandom_fnc() < 0.5,
+    tilt_int: Math.round((pRandom_fnc() * 2 - 1) * cMaxTilt_int)
+  };
+}
+
+// >>>>> fnPatternSvg_str <<<<<
+// Draws a sock's pattern as shapes. The patterns differ by shape, never by
+// color alone, so they can be told apart without relying on color.
+function fnPatternSvg_str(pPattern_str) {
+  var vShapes_str = '';
+  if (pPattern_str === 'stripes') {
+    [24, 36, 48, 60, 70].forEach(function (pY_int) {
+      vShapes_str += '<rect x="0" y="' + pY_int + '" width="60" height="5"/>';
+    });
+  } else if (pPattern_str === 'dots') {
+    [24, 36, 48, 60, 72].forEach(function (pY_int, pRow_int) {
+      [20, 32, 44, 56].forEach(function (pX_int) {
+        vShapes_str += '<circle cx="' + (pX_int + (pRow_int % 2) * 6) + '" cy="' + pY_int + '" r="3.2"/>';
+      });
+    });
+  } else if (pPattern_str === 'zigzag') {
+    [28, 44, 60, 74].forEach(function (pY_int) {
+      vShapes_str += '<polyline fill="none" stroke="' + cPatternInk_str + '" stroke-width="3.5" stroke-linejoin="round" points="10,' + pY_int + ' 18,' + (pY_int - 7) +
+        ' 26,' + pY_int + ' 34,' + (pY_int - 7) + ' 42,' + pY_int + ' 50,' + (pY_int - 7) + ' 58,' + pY_int + '"/>';
+    });
+  } else if (pPattern_str === 'diamonds') {
+    [[28, 30], [28, 54], [46, 64]].forEach(function (pCenter_arr) {
+      vShapes_str += '<polygon points="' + pCenter_arr[0] + ',' + (pCenter_arr[1] - 10) + ' ' + (pCenter_arr[0] + 8) + ',' + pCenter_arr[1] + ' ' +
+        pCenter_arr[0] + ',' + (pCenter_arr[1] + 10) + ' ' + (pCenter_arr[0] - 8) + ',' + pCenter_arr[1] + '"/>';
+    });
+  }
+  return vShapes_str;
+}
+
+// >>>>> fnSockSvg_str <<<<<
+// Draws one sock. pId_str has to be different for every sock on the page,
+// because each sock clips its pattern to its own outline.
+function fnSockSvg_str(pSock_obj, pId_str) {
+  const cFlip_str = pSock_obj.isFlipped_bol ? ' translate(60 0) scale(-1 1)' : '';
+  return '<svg viewBox="-6 -4 72 88" xmlns="http://www.w3.org/2000/svg">' +
+    '<g transform="rotate(' + pSock_obj.tilt_int + ' 30 40)' + cFlip_str + '">' +
+    '<clipPath id="' + pId_str + '"><path d="' + cSockPath_str + '"/></clipPath>' +
+    '<path d="' + cSockPath_str + '" fill="' + pSock_obj.color_str + '"/>' +
+    '<g clip-path="url(#' + pId_str + ')"><g fill="' + cPatternInk_str + '">' + fnPatternSvg_str(pSock_obj.pattern_str) + '</g>' +
+    '<rect x="0" y="0" width="60" height="18" fill="' + pSock_obj.cuff_str + '"/>' +
+    '<line x1="0" y1="18" x2="60" y2="18" stroke="' + cInk_str + '" stroke-width="3"/></g>' +
+    '<path d="' + cSockPath_str + '" fill="none" stroke="' + cInk_str + '" stroke-width="3.5" stroke-linejoin="round"/>' +
+    '</g></svg>';
+}
+</script>
+
+<script>
+// The game itself: it deals five piles, checks each tap, and keeps score.
+
+const cFewSocks_int = 6;
+const cTopShare_flt = 0.8;
+const cHeroSocks_arr = [
+  { color_str: '#D9534F', pattern_str: 'stripes', cuff_str: '#FFFDF6', isFlipped_bol: false, tilt_int: 0 },
+  { color_str: '#3D6FB6', pattern_str: 'dots', cuff_str: '#F28B30', isFlipped_bol: true, tilt_int: 0 },
+  { color_str: '#4E9F6B', pattern_str: 'zigzag', cuff_str: '#2B2A33', isFlipped_bol: false, tilt_int: 0 }
+];
+
+var gRound_int;
+var gScore_int;
+var gSocks_arr;
+var gIsFirstTap_bol;
+
+// >>>>> fnMyLogger <<<<<
+// The browser version of the logger. A web page cannot reach the log
+// spreadsheet, so each entry goes to the browser console instead.
+function fnMyLogger(pMessage_str, pFunction_str, pValues_str, pLineNumber_int, pIsError_bol) {
+  const cLogType_str = pIsError_bol ? 'Error' : 'Log';
+  const cEntry_str = [cLogType_str, 'index.html', pFunction_str, pLineNumber_int, String(pMessage_str), pValues_str].join(' | ');
+  if (pIsError_bol) {
+    console.error(cEntry_str);
+  } else {
+    console.log(cEntry_str);
+  }
+}
+
+// >>>>> fnLineNumber_int <<<<<
+// The line number an error was raised on, read from its stack trace.
+// Apps Script's V8 runtime has no Error.lineNumber (that exists only in
+// Firefox), so the stack is the only place the line number is recorded.
+// Returns 'N/A' when the stack carries no line number.
+function fnLineNumber_int(pError_obj) {
+  const cStack_str = String(pError_obj && pError_obj.stack ? pError_obj.stack : '');
+  const cMatch_arr = cStack_str.match(/:(\d+)(?::\d+)?\)?\s*$/m);
+  const cRadix_int = 10;
+  if (cMatch_arr) {
+    return parseInt(cMatch_arr[1], cRadix_int);
+  }
+  return 'N/A';
+}
+
+function fnElement_obj(pId_str) {
+  return document.getElementById(pId_str);
+}
+
+// >>>>> fnShowScreen <<<<<
+// Shows one of the three screens (start, play, or end) and hides the others.
+function fnShowScreen(pName_str) {
+  var vValues_str = pName_str;
+  var vIsError_bol = true;
+  try {
+    ['start', 'play', 'end'].forEach(function (pEach_str) {
+      fnElement_obj('screen-' + pEach_str).hidden = pEach_str !== pName_str;
+    });
+    fnElement_obj('bar').hidden = pName_str !== 'play';
+    window.scrollTo(0, 0);
+  } catch (vError_obj) {
+    fnMyLogger(vError_obj, 'fnShowScreen', vValues_str, fnLineNumber_int(vError_obj), vIsError_bol);
+  }
+}
+
+// >>>>> fnShowBar <<<<<
+// Keeps the pile count and the score in view at the top of the play screen.
+function fnShowBar() {
+  var vValues_str = '';
+  var vIsError_bol = true;
+  try {
+    fnElement_obj('round-count').textContent = 'Pile ' + (gRound_int + 1) + ' of ' + cRounds_arr.length;
+    fnElement_obj('score').textContent = 'Score: ' + gScore_int;
+  } catch (vError_obj) {
+    fnMyLogger(vError_obj, 'fnShowBar', vValues_str, fnLineNumber_int(vError_obj), vIsError_bol);
+  }
+}
+
+// >>>>> fnShowRound <<<<<
+// Deals the current pile and draws one button per sock.
+function fnShowRound() {
+  var vValues_str = String(gRound_int);
+  var vIsError_bol = true;
+  var vPile_obj;
+  try {
+    gSocks_arr = fnBuildRound_arr(gRound_int, Math.random);
+    gIsFirstTap_bol = true;
+    vPile_obj = fnElement_obj('pile');
+    vPile_obj.innerHTML = '';
+    vPile_obj.classList.toggle('few', gSocks_arr.length <= cFewSocks_int);
+    gSocks_arr.forEach(function (pSock_obj, pIndex_int) {
+      var vButton_obj = document.createElement('button');
+      vButton_obj.type = 'button';
+      vButton_obj.className = 'sock';
+      vButton_obj.setAttribute('aria-label', 'Sock ' + (pIndex_int + 1));
+      vButton_obj.innerHTML = fnSockSvg_str(pSock_obj, 'clip-' + pIndex_int);
+      vButton_obj.addEventListener('click', function () {
+        fnChoose(pIndex_int);
+      });
+      vPile_obj.appendChild(vButton_obj);
+    });
+    fnElement_obj('note').textContent = '';
+    fnElement_obj('next').hidden = true;
+    fnShowBar();
+    window.scrollTo(0, 0);
+  } catch (vError_obj) {
+    fnMyLogger(vError_obj, 'fnShowRound', vValues_str, fnLineNumber_int(vError_obj), vIsError_bol);
+  }
+}
+
+// >>>>> fnChoose <<<<<
+// Handles a tap on a sock. The odd sock ends the pile. Any other sock is
+// set aside together with its partner, so the player can see why it was
+// not the answer and try again with a smaller pile.
+function fnChoose(pIndex_int) {
+  var vValues_str = String(pIndex_int);
+  var vIsError_bol = true;
+  var vButtons_arr;
+  var vSock_obj;
+  try {
+    vButtons_arr = Array.prototype.slice.call(fnElement_obj('pile').children);
+    vSock_obj = gSocks_arr[pIndex_int];
+    if (vSock_obj.isOdd_bol) {
+      if (gIsFirstTap_bol) {
+        gScore_int++;
+      }
+      vButtons_arr.forEach(function (pButton_obj, pEach_int) {
+        pButton_obj.disabled = true;
+        pButton_obj.classList.add(pEach_int === pIndex_int ? 'found' : 'rest');
+      });
+      fnElement_obj('note').textContent = gIsFirstTap_bol ? 'You found the odd sock on your first tap!' : 'You found the odd sock!';
+      fnElement_obj('next').textContent = gRound_int === cRounds_arr.length - 1 ? 'See My Score' : 'Next Pile';
+      fnElement_obj('next').hidden = false;
+      fnShowBar();
+      fnElement_obj('next').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else {
+      gIsFirstTap_bol = false;
+      gSocks_arr.forEach(function (pEach_obj, pEach_int) {
+        if (pEach_obj.key_str === vSock_obj.key_str) {
+          vButtons_arr[pEach_int].disabled = true;
+          vButtons_arr[pEach_int].classList.add('pair');
+        }
+      });
+      fnElement_obj('note').textContent = 'Those two are a pair. Try another sock!';
+    }
+  } catch (vError_obj) {
+    fnMyLogger(vError_obj, 'fnChoose', vValues_str, fnLineNumber_int(vError_obj), vIsError_bol);
+  }
+}
+
+// >>>>> fnNext <<<<<
+// Moves on to the next pile, or to the end screen after the last one.
+function fnNext() {
+  var vValues_str = String(gRound_int);
+  var vIsError_bol = true;
+  try {
+    if (gRound_int < cRounds_arr.length - 1) {
+      gRound_int++;
+      fnShowRound();
+    } else {
+      fnShowEnd();
+    }
+  } catch (vError_obj) {
+    fnMyLogger(vError_obj, 'fnNext', vValues_str, fnLineNumber_int(vError_obj), vIsError_bol);
+  }
+}
+
+// >>>>> fnShowEnd <<<<<
+// Shows the total and a title to go with it.
+function fnShowEnd() {
+  var vValues_str = String(gScore_int);
+  var vIsError_bol = true;
+  var vRank_str;
+  var vRankLine_str;
+  try {
+    if (gScore_int === cRounds_arr.length) {
+      vRank_str = 'Laundry Legend';
+      vRankLine_str = 'A perfect load. No sock can hide from you.';
+    } else if (gScore_int >= cRounds_arr.length * cTopShare_flt) {
+      vRank_str = 'Sock Detective';
+      vRankLine_str = 'So close to a perfect load. One more try?';
+    } else {
+      vRank_str = 'Sock Sorter';
+      vRankLine_str = 'The dryer ate a few. The next load will go better.';
+    }
+    fnElement_obj('final-score').textContent = gScore_int + ' of ' + cRounds_arr.length;
+    fnElement_obj('rank').textContent = vRank_str;
+    fnElement_obj('rank-line').textContent = vRankLine_str;
+    fnShowScreen('end');
+  } catch (vError_obj) {
+    fnMyLogger(vError_obj, 'fnShowEnd', vValues_str, fnLineNumber_int(vError_obj), vIsError_bol);
+  }
+}
+
+// >>>>> fnDealGame <<<<<
+// Starts a fresh game of five new piles.
+function fnDealGame() {
+  var vValues_str = '';
+  var vIsError_bol = true;
+  try {
+    gRound_int = 0;
+    gScore_int = 0;
+    fnShowScreen('play');
+    fnShowRound();
+  } catch (vError_obj) {
+    fnMyLogger(vError_obj, 'fnDealGame', vValues_str, fnLineNumber_int(vError_obj), vIsError_bol);
+  }
+}
+
+// >>>>> fnInit <<<<<
+// Draws the three socks on the start and end screens, wires up the buttons,
+// and opens the start screen.
+function fnInit() {
+  var vValues_str = '';
+  var vIsError_bol = true;
+  try {
+    ['hero', 'end-hero'].forEach(function (pId_str) {
+      fnElement_obj(pId_str).innerHTML = cHeroSocks_arr.map(function (pSock_obj, pIndex_int) {
+        return fnSockSvg_str(pSock_obj, pId_str + '-clip-' + pIndex_int);
+      }).join('');
+    });
+    fnElement_obj('start').addEventListener('click', fnDealGame);
+    fnElement_obj('next').addEventListener('click', fnNext);
+    fnElement_obj('again').addEventListener('click', fnDealGame);
+    fnShowScreen('start');
+  } catch (vError_obj) {
+    fnMyLogger(vError_obj, 'fnInit', vValues_str, fnLineNumber_int(vError_obj), vIsError_bol);
+  }
+}
+
+fnInit();
+</script>
+</body>
+</html>
